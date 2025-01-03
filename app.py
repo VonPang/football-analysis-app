@@ -18,63 +18,63 @@ def calculate_kelly(probability, odds, bankroll):
     return 0.0
 
 # Function to calculate probabilities using Poisson distribution
-def calculate_poisson_prob(total_avg, threshold):
+def calculate_poisson_prob(avg, second_team_avg, threshold):
+    total_avg = avg + second_team_avg
     prob_over = 1 - sum(poisson_prob(i, total_avg) for i in range(int(threshold) + 1))
     prob_under = 1 - prob_over
     return round(prob_over, 4), round(prob_under, 4)
 
-# Initialize session state
-if "combo_data" not in st.session_state:
-    st.session_state["combo_data"] = []
+# Function to adjust probabilities with realism factor
+def apply_realism_adjustment(probability, realism_factor):
+    adjusted_prob = probability * realism_factor
+    return min(max(adjusted_prob, 0.0), 1.0)
 
-if "bet_tracker" not in st.session_state:
-    st.session_state["bet_tracker"] = []
-
-if "last_analysis" not in st.session_state:
-    st.session_state["last_analysis"] = {}
-
-# App Layout
-st.title("Football Analysis Tools with All Features")
-
-# Sidebar menu
-tool = st.sidebar.radio("Choose a tool:", [
-    "Shots Market",
-    "Player Shots Market",
-    "Corners Market",
-    "Team Specific Analysis",
-    "Combo Bets",
-    "Bet Tracker"
-])
+# Initialize Streamlit app
+st.title("Enhanced Football Analysis App")
 
 # Sidebar for bankroll input
 bankroll = st.sidebar.number_input("Enter your current bankroll:", min_value=0.0, value=1000.0)
 
-# Shots Market Analysis
+# Tool selection
+tool = st.sidebar.radio("Choose a tool:", [
+    "Shots Market",
+    "Player Shots Market",
+    "Corners Market",
+    "Cards Market",
+    "Team Specific Analysis",
+    "Combo Bets"
+])
+
+# Shots Market Tool
 if tool == "Shots Market":
-    st.header("Advanced Shots Market Analysis")
-    home_avg = st.number_input("Home Team Average Shots per match:", min_value=0.0, value=5.5, step=0.1)
-    away_avg = st.number_input("Away Team Average Shots per match:", min_value=0.0, value=4.5, step=0.1)
-    home_allowed = st.number_input("Opponent Shots Allowed by Home Team:", min_value=0.0, value=12.0, step=0.1)
-    away_allowed = st.number_input("Opponent Shots Allowed by Away Team:", min_value=0.0, value=11.5, step=0.1)
-    home_xg = st.number_input("Home Team xG:", min_value=0.0, value=1.5, step=0.1)
-    away_xg = st.number_input("Away Team xG:", min_value=0.0, value=1.2, step=0.1)
-    threshold = st.number_input("Threshold for Total Shots (e.g., 9.5):", min_value=0.0, value=9.5, step=0.1)
-    odds_over = st.number_input("Odds for Over Shots Market:", min_value=1.01, value=1.8, step=0.01)
-    odds_under = st.number_input("Odds for Under Shots Market:", min_value=1.01, value=2.0, step=0.01)
+    st.header("Shots Market Analysis with In-Depth Metrics")
+    home_shots = st.number_input("Home Team Average Shots:", min_value=0.0, value=14.0)
+    away_shots = st.number_input("Away Team Average Shots:", min_value=0.0, value=10.0)
+    home_allowed_shots = st.number_input("Opponent Shots Allowed by Home Team:", min_value=0.0, value=8.0)
+    away_allowed_shots = st.number_input("Opponent Shots Allowed by Away Team:", min_value=0.0, value=12.0)
+    st.subheader("Recent Head-to-Head Matches")
+    num_h2h_matches = st.number_input("Number of recent head-to-head matches to include:", min_value=1, max_value=10, value=4)
+    h2h_shots = []
+    for i in range(int(num_h2h_matches)):
+        h2h_shots.append(st.number_input(f"Total shots in head-to-head match {i + 1}:", min_value=0.0, value=20.0, key=f"h2h_{i}"))
+    avg_h2h_shots = round(sum(h2h_shots) / len(h2h_shots), 2) if h2h_shots else 0.0
+    threshold = st.number_input("Threshold for Total Shots (e.g., 22.5):", min_value=0.0, value=22.5)
+    odds_over = st.number_input("Odds for Over Shots:", min_value=1.01, value=1.8)
+    odds_under = st.number_input("Odds for Under Shots:", min_value=1.01, value=2.0)
+    realism_factor = st.slider("Realism Adjustment Factor:", 0.8, 1.2, 1.0)
 
     if st.button("Analyze Shots Market"):
-        home_total = home_avg + away_allowed + home_xg
-        away_total = away_avg + home_allowed + away_xg
-        total_avg_shots = home_total + away_total
-
-        prob_over, prob_under = calculate_poisson_prob(total_avg_shots, threshold)
+        total_avg_shots = ((home_shots + away_shots) / 2 +
+                           (home_allowed_shots + away_allowed_shots) / 2 * 0.5 +
+                           avg_h2h_shots * 0.2) * realism_factor
+        prob_over, prob_under = calculate_poisson_prob(total_avg_shots, 0, threshold)
         ev_over = calculate_ev(prob_over, odds_over)
         ev_under = calculate_ev(prob_under, odds_under)
         kelly_over = calculate_kelly(prob_over, odds_over, bankroll)
         kelly_under = calculate_kelly(prob_under, odds_under, bankroll)
-
         results = pd.DataFrame({
             "Bet Option": ["Over", "Under"],
+            "Adjusted Avg Shots": [total_avg_shots, total_avg_shots],
             "Threshold": [threshold, threshold],
             "Probability (%)": [f"{prob_over * 100:.2f}%", f"{prob_under * 100:.2f}%"],
             "Odds": [odds_over, odds_under],
@@ -83,45 +83,21 @@ if tool == "Shots Market":
         })
         st.table(results)
 
-# Player Shots Market
+# Player Shots Market Tool
 elif tool == "Player Shots Market":
     st.header("Player Shots Market Analysis")
-    player = st.text_input("Enter Player Name", placeholder="e.g., Haaland")
-    avg_shots = st.number_input(f"Average Shots per Match for {player}:", min_value=0.0, value=2.5, step=0.1)
-    threshold = st.number_input(f"Threshold for Shots (e.g., 2.5):", min_value=0.0, value=2.5, step=0.1)
-    odds_over = st.number_input(f"Odds for Over {threshold} Shots:", min_value=1.01, value=1.9, step=0.01)
+    player_name = st.text_input("Enter Player Name:", "Isak")
+    avg_shots = st.number_input(f"Average Shots per Match for {player_name}:", min_value=0.0, value=3.0)
+    threshold = st.number_input("Threshold for Shots (e.g., 2.5):", min_value=0.0, value=2.5)
+    odds_over = st.number_input("Odds for Over Shots:", min_value=1.01, value=1.8)
+    odds_under = st.number_input("Odds for Under Shots:", min_value=1.01, value=2.0)
 
-    if st.button(f"Analyze Shots Market for {player}"):
-        prob_over = 1 - sum(poisson_prob(i, avg_shots) for i in range(int(threshold) + 1))
-        ev_over = calculate_ev(prob_over, odds_over)
-        kelly_over = calculate_kelly(prob_over, odds_over, bankroll)
-
-        results = pd.DataFrame({
-            "Bet Option": ["Over"],
-            "Threshold": [threshold],
-            "Probability (%)": [f"{prob_over * 100:.2f}%"],
-            "Odds": [odds_over],
-            "EV (%)": [ev_over],
-            "Recommended Bet": [kelly_over]
-        })
-        st.table(results)
-
-# Corners Market
-elif tool == "Corners Market":
-    st.header("Corners Market Analysis")
-    home_avg = st.number_input("Home Team Average Corners per match:", min_value=0.0, value=5.0, step=0.1)
-    away_avg = st.number_input("Away Team Average Corners per match:", min_value=0.0, value=4.5, step=0.1)
-    threshold = st.number_input("Threshold for Total Corners (e.g., 9.5):", min_value=0.0, value=9.5, step=0.1)
-    odds_over = st.number_input("Odds for Over Corners Market:", min_value=1.01, value=1.8, step=0.01)
-    odds_under = st.number_input("Odds for Under Corners Market:", min_value=1.01, value=2.0, step=0.01)
-
-    if st.button("Analyze Corners Market"):
-        prob_over, prob_under = calculate_poisson_prob(home_avg + away_avg, threshold)
+    if st.button(f"Analyze Shots Market for {player_name}"):
+        prob_over, prob_under = calculate_poisson_prob(avg_shots, 0, threshold)
         ev_over = calculate_ev(prob_over, odds_over)
         ev_under = calculate_ev(prob_under, odds_under)
         kelly_over = calculate_kelly(prob_over, odds_over, bankroll)
         kelly_under = calculate_kelly(prob_under, odds_under, bankroll)
-
         results = pd.DataFrame({
             "Bet Option": ["Over", "Under"],
             "Threshold": [threshold, threshold],
@@ -132,116 +108,53 @@ elif tool == "Corners Market":
         })
         st.table(results)
 
-# Team Specific Analysis
+# Team Specific Analysis Tool
 elif tool == "Team Specific Analysis":
     st.header("Team Specific Analysis")
-    team = st.text_input("Enter Team Name", placeholder="e.g., Chelsea, Arsenal")
-    half = st.selectbox("Select Half", ["1st Half", "2nd Half"])
-    avg_shots = st.number_input(f"Average Shots for {team} in {half}:", min_value=0.0, value=6.5, step=0.1)
-    threshold = st.number_input(f"Threshold for Total Shots (e.g., 5.5):", min_value=0.0, value=5.5, step=0.1)
-    odds_over = st.number_input(f"Odds for Over {threshold} Shots:", min_value=1.01, value=1.8, step=0.01)
+    team = st.text_input("Enter Team Name:", placeholder="e.g., Chelsea")
+    avg_shots = st.number_input(f"Average Shots for {team}:", min_value=0.0, value=12.0)
+    opp_shots_allowed = st.number_input(f"Opponent's Shots Allowed per Match:", min_value=0.0, value=10.0)
+    threshold = st.number_input("Threshold for Shots:", min_value=0.0, value=9.5)
+    odds_over = st.number_input("Odds for Over:", min_value=1.01, value=1.8)
+    odds_under = st.number_input("Odds for Under:", min_value=1.01, value=2.0)
 
-    if st.button(f"Analyze Team Market for {team}"):
-        prob_over = 1 - sum(poisson_prob(i, avg_shots) for i in range(int(threshold) + 1))
+    if st.button(f"Analyze {team}'s Shot Market"):
+        prob_over, prob_under = calculate_poisson_prob(avg_shots, opp_shots_allowed, threshold)
         ev_over = calculate_ev(prob_over, odds_over)
+        ev_under = calculate_ev(prob_under, odds_under)
         kelly_over = calculate_kelly(prob_over, odds_over, bankroll)
-
+        kelly_under = calculate_kelly(prob_under, odds_under, bankroll)
         results = pd.DataFrame({
-            "Bet Option": ["Over"],
-            "Threshold": [threshold],
-            "Probability (%)": [f"{prob_over * 100:.2f}%"],
-            "Odds": [odds_over],
-            "EV (%)": [ev_over],
-            "Recommended Bet": [kelly_over]
+            "Bet Option": ["Over", "Under"],
+            "Threshold": [threshold, threshold],
+            "Probability (%)": [f"{prob_over * 100:.2f}%", f"{prob_under * 100:.2f}%"],
+            "Odds": [odds_over, odds_under],
+            "EV (%)": [ev_over, ev_under],
+            "Recommended Bet": [kelly_over, kelly_under]
         })
         st.table(results)
 
-# Combo Bets
-elif tool == "Combo Bets":
-    st.header("Combo Bets Analysis")
-    num_selections = st.number_input("Number of selections in the combo bet:", min_value=2, max_value=10, value=3, step=1)
-    selections = []
-    for i in range(int(num_selections)):
-        st.subheader(f"Selection {i + 1}")
-        probability = st.number_input(f"Probability for Selection {i + 1} (%)", min_value=0.0, max_value=100.0, value=50.0, step=1.0)
-        odds = st.number_input(f"Odds for Selection {i + 1}", min_value=1.01, value=2.0, step=0.01)
-        selections.append({"probability": probability / 100, "odds": odds})
+# Corners Market Tool
+elif tool == "Corners Market":
+    st.header("Corners Market Analysis")
+    home_corners = st.number_input("Home Team Average Corners:", min_value=0.0, value=6.0)
+    away_corners = st.number_input("Away Team Average Corners:", min_value=0.0, value=4.0)
+    threshold = st.number_input("Threshold for Total Corners:", min_value=0.0, value=9.5)
+    odds_over = st.number_input("Odds for Over Corners:", min_value=1.01, value=1.8)
+    odds_under = st.number_input("Odds for Under Corners:", min_value=1.01, value=2.0)
 
-    bookmaker_combo_odds = st.number_input("Bookmaker's offered combo odds:", min_value=1.01, value=5.0, step=0.01)
-
-    if st.button("Analyze Combo Bet"):
-        total_probability = 1
-        total_odds = 1
-        for sel in selections:
-            total_probability *= sel["probability"]
-            total_odds *= sel["odds"]
-
-        ev = calculate_ev(total_probability, bookmaker_combo_odds)
-        kelly_fraction = max(0, (bookmaker_combo_odds * total_probability - 1) / (bookmaker_combo_odds - 1))
-        recommended_bet = round(bankroll * kelly_fraction, 2)
-
+    if st.button("Analyze Corners Market"):
+        prob_over, prob_under = calculate_poisson_prob(home_corners, away_corners, threshold)
+        ev_over = calculate_ev(prob_over, odds_over)
+        ev_under = calculate_ev(prob_under, odds_under)
+        kelly_over = calculate_kelly(prob_over, odds_over, bankroll)
+        kelly_under = calculate_kelly(prob_under, odds_under, bankroll)
         results = pd.DataFrame({
-            "Fair Odds": [round(1 / total_probability, 2)],
-            "Bookmaker Odds": [bookmaker_combo_odds],
-            "EV (%)": [ev],
-            "Recommended Bet": [recommended_bet]
+            "Bet Option": ["Over", "Under"],
+            "Threshold": [threshold, threshold],
+            "Probability (%)": [f"{prob_over * 100:.2f}%", f"{prob_under * 100:.2f}%"],
+            "Odds": [odds_over, odds_under],
+            "EV (%)": [ev_over, ev_under],
+            "Recommended Bet": [kelly_over, kelly_under]
         })
         st.table(results)
-
-# Bet Tracker
-elif tool == "Bet Tracker":
-    st.header("Bet Tracker")
-    if st.session_state["bet_tracker"]:
-        tracker_df = pd.DataFrame(st.session_state["bet_tracker"])
-        st.table(tracker_df)
-    else:
-        st.write("No bets tracked yet.")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
