@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 from math import exp, factorial
 
 # Function to calculate weighted probability with dynamic adjustment
