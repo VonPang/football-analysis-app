@@ -233,7 +233,6 @@ if tool == "Player Shots Market":
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 
 # Function to calculate weighted probability with dynamic adjustment
 def calculate_weighted_probability_dynamic(monte_carlo_prob, pinnacle_prob, weight_factor=0.7):
